@@ -3,6 +3,8 @@ pipeline {
      REGISTRY_ENDPOINT = "https://binblee/v2/"
      IMAGE_WITH_TAG = "binblee/springboot-helm-chart"
      REGISTRY_CERTS = "registry"
+
+     azure_tenant_id = 'aaaaaa-bbbbbbbbbbb-nnnnnnn'
    }
   agent {
     node {
@@ -42,11 +44,33 @@ pipeline {
             sh 'docker push ${IMAGE_WITH_TAG}'
           }
         }
-
       }
     }
-  }
-  triggers {
-    pollSCM('* * * * *')
+    stage('Configure K8s') {
+      steps {
+        echo 'Start configuration'
+        script {
+          withCredentials([usernamePassword(credentialsId: 'azure-sp-terraform', usernameVariable: 'SP_USERNAME', passwordVariable: 'SP_PASSWORD')]) {
+              sh "az login --service-principal --username ${SP_USERNAME} --password ${SP_PASSWORD} --tenant ${azure_tenant_id}"
+          }
+          // load k8s config to enable connection
+          az aks get-credentials --resource-group rg-diego-lab --name aks-diego-lab
+        }
+      }
+    }
+    stage('Configure K8s') {
+      steps {
+        echo 'Start configuration'
+        script {
+          withCredentials([usernamePassword(credentialsId: 'azure-sp-terraform', usernameVariable: 'SP_USERNAME', passwordVariable: 'SP_PASSWORD')]) {
+              sh "az login --service-principal --username ${SP_USERNAME} --password ${SP_PASSWORD} --tenant ${azure_tenant_id}"
+          }
+
+          dir('demoweb/charts'){
+            helm upgrade demo -n default ./springboot-demoweb/
+          }
+        }
+      }
+    }
   }
 }
